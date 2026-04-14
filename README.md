@@ -1,5 +1,7 @@
 # vulnfix — AI Vulnerability Scanner. Automated security vulnerability detection and fix suggestions
 
+**Live:** <https://mukundakatta.github.io/vulnfix/>
+
 AI Vulnerability Scanner. Automated security vulnerability detection and fix suggestions. vulnfix gives you a focused, inspectable implementation of that idea.
 
 ## Why vulnfix
