@@ -17,6 +17,14 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+class FindingStatus(str, Enum):
+    NEW = "new"
+    TRIAGED = "triaged"
+    SUPPRESSED = "suppressed"
+    FIXED = "fixed"
+    NEEDS_VERIFICATION = "needs_verification"
+
+
 class OWASPCategory(str, Enum):
     A01_BROKEN_ACCESS_CONTROL = "A01:2021 - Broken Access Control"
     A02_CRYPTOGRAPHIC_FAILURES = "A02:2021 - Cryptographic Failures"
@@ -100,6 +108,25 @@ class Fix(BaseModel):
     breaking_change: bool = False
 
 
+class SuppressionRule(BaseModel):
+    """Structured suppression rule for accepted findings."""
+
+    vulnerability_id: Optional[str] = None
+    file_path: Optional[str] = None
+    reason: str
+    expires_at: Optional[str] = None
+
+
+class FindingTriage(BaseModel):
+    """Workflow state for one vulnerability finding."""
+
+    vulnerability_id: str
+    status: FindingStatus = FindingStatus.NEW
+    notes: Optional[str] = None
+    suppression: Optional[SuppressionRule] = None
+    fix_verified: bool = False
+
+
 class ScanResult(BaseModel):
     """Result of a complete scan."""
 
@@ -110,6 +137,7 @@ class ScanResult(BaseModel):
     completed_at: Optional[datetime] = None
     vulnerabilities: list[Vulnerability] = Field(default_factory=list)
     fixes: list[Fix] = Field(default_factory=list)
+    triage: list[FindingTriage] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)
 
     def compute_summary(self) -> dict[str, int]:
@@ -119,3 +147,11 @@ class ScanResult(BaseModel):
             counts["total"] += 1
         self.summary = counts
         return counts
+
+    def build_default_triage(self) -> list[FindingTriage]:
+        """Create default triage entries for all findings."""
+        self.triage = [
+            FindingTriage(vulnerability_id=vulnerability.id)
+            for vulnerability in self.vulnerabilities
+        ]
+        return self.triage

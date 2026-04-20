@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -11,7 +10,15 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from vulnfix.models import Fix, ScanResult, Severity, Vulnerability
+from vulnfix.models import (
+    FindingStatus,
+    FindingTriage,
+    Fix,
+    ScanResult,
+    Severity,
+    SuppressionRule,
+    Vulnerability,
+)
 
 
 class ReportGenerator:
@@ -117,3 +124,119 @@ class ReportGenerator:
         """Convert scan result to a dictionary."""
         result.compute_summary()
         return result.model_dump()
+
+    def triage_finding(
+        self,
+        result: ScanResult,
+        vulnerability_id: str,
+        *,
+        status: FindingStatus,
+        notes: str | None = None,
+        suppression: SuppressionRule | None = None,
+        fix_verified: bool = False,
+    ) -> FindingTriage:
+        """Create or update triage state for a finding."""
+        existing = next(
+            (entry for entry in result.triage if entry.vulnerability_id == vulnerability_id),
+            None,
+        )
+        if existing is None:
+            existing = FindingTriage(vulnerability_id=vulnerability_id)
+            result.triage.append(existing)
+        existing.status = status
+        existing.notes = notes
+        existing.suppression = suppression
+        existing.fix_verified = fix_verified
+        return existing
+
+    def to_sarif(self, result: ScanResult) -> str:
+        """Serialize scan results as a SARIF v2.1.0 log."""
+        result.compute_summary()
+        rules = []
+        sarif_results = []
+        seen_rules: set[str] = set()
+
+        for vulnerability in result.vulnerabilities:
+            rule_id = vulnerability.cwe_id or vulnerability.id
+            if rule_id not in seen_rules:
+                seen_rules.add(rule_id)
+                rules.append(
+                    {
+                        "id": rule_id,
+                        "name": vulnerability.title,
+                        "shortDescription": {"text": vulnerability.title},
+                        "fullDescription": {"text": vulnerability.description},
+                        "properties": {
+                            "security-severity": f"{vulnerability.cvss_score:.1f}",
+                            "precision": self._confidence_to_precision(vulnerability.confidence),
+                            "tags": [
+                                vulnerability.owasp_category.value,
+                                vulnerability.severity.value,
+                            ],
+                        },
+                    }
+                )
+
+            sarif_entry = {
+                "ruleId": rule_id,
+                "level": self._severity_to_sarif_level(vulnerability.severity),
+                "message": {"text": vulnerability.description},
+                "properties": {
+                    "vulnfixId": vulnerability.id,
+                    "confidence": vulnerability.confidence,
+                    "remediation": vulnerability.remediation,
+                },
+            }
+            if vulnerability.file_path:
+                sarif_entry["locations"] = [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": vulnerability.file_path},
+                            "region": {
+                                "startLine": vulnerability.line_number or 1,
+                            },
+                        }
+                    }
+                ]
+            sarif_results.append(sarif_entry)
+
+        sarif_log = {
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "vulnfix",
+                            "version": "0.1.0",
+                            "informationUri": "https://github.com/MukundaKatta/vulnfix",
+                            "rules": rules,
+                        }
+                    },
+                    "artifacts": [{"location": {"uri": result.target}}],
+                    "results": sarif_results,
+                }
+            ],
+        }
+        return json.dumps(sarif_log, indent=2)
+
+    @staticmethod
+    def _severity_to_sarif_level(severity: Severity) -> str:
+        mapping = {
+            Severity.CRITICAL: "error",
+            Severity.HIGH: "error",
+            Severity.MEDIUM: "warning",
+            Severity.LOW: "note",
+            Severity.INFO: "note",
+        }
+        return mapping[severity]
+
+    @staticmethod
+    def _confidence_to_precision(confidence: float) -> str:
+        if confidence >= 0.9:
+            return "very-high"
+        if confidence >= 0.75:
+            return "high"
+        if confidence >= 0.5:
+            return "medium"
+        return "low"
