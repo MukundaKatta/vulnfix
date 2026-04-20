@@ -40,6 +40,14 @@ class TestCLI:
             result = self.runner.invoke(cli, ["scan", "code", tmpdir, "--format", "json"])
             assert result.exit_code == 0
 
+    def test_scan_code_sarif(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Path(tmpdir) / "vuln.py"
+            p.write_text('password = "admin123"')
+            result = self.runner.invoke(cli, ["scan", "code", tmpdir, "--format", "sarif"])
+            assert result.exit_code == 0
+            assert '"version": "2.1.0"' in result.output
+
     def test_scan_deps(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("django==4.0.0\n")
@@ -74,5 +82,14 @@ class TestCLI:
             p.write_text("DEBUG = True\n")
             out = Path(tmpdir) / "report.json"
             result = self.runner.invoke(cli, ["report", tmpdir, "-o", str(out)])
+            assert result.exit_code == 0
+            assert out.exists()
+
+    def test_report_sarif_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Path(tmpdir) / "settings.py"
+            p.write_text("DEBUG = True\n")
+            out = Path(tmpdir) / "report.sarif"
+            result = self.runner.invoke(cli, ["report", tmpdir, "--format", "sarif", "-o", str(out)])
             assert result.exit_code == 0
             assert out.exists()

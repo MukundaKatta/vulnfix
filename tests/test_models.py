@@ -3,10 +3,13 @@
 from vulnfix.models import (
     CVE,
     CVSSMetrics,
+    FindingStatus,
+    FindingTriage,
     Fix,
     OWASPCategory,
     ScanResult,
     Severity,
+    SuppressionRule,
     Vulnerability,
 )
 
@@ -91,9 +94,37 @@ class TestScanResult:
         assert summary["low"] == 1
         assert summary["total"] == 5
 
+    def test_build_default_triage(self):
+        result = ScanResult(
+            target="/app",
+            scan_type="code",
+            vulnerabilities=[
+                Vulnerability(
+                    id="1",
+                    title="a",
+                    description="a",
+                    severity=Severity.CRITICAL,
+                    owasp_category=OWASPCategory.A03_INJECTION,
+                )
+            ],
+        )
+        triage = result.build_default_triage()
+        assert len(triage) == 1
+        assert triage[0].status == FindingStatus.NEW
+
 
 class TestCVSSMetrics:
     def test_defaults(self):
         m = CVSSMetrics()
         assert m.attack_vector.value == "NETWORK"
         assert m.attack_complexity.value == "LOW"
+
+
+class TestTriageModels:
+    def test_suppression_rule(self):
+        rule = SuppressionRule(file_path="app.py", reason="accepted false positive")
+        assert rule.reason == "accepted false positive"
+
+    def test_finding_triage(self):
+        triage = FindingTriage(vulnerability_id="VULNFIX-1", status=FindingStatus.TRIAGED)
+        assert triage.status == FindingStatus.TRIAGED

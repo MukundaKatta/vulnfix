@@ -81,83 +81,99 @@ def scan() -> None:
 
 @scan.command("code")
 @click.argument("target", type=click.Path(exists=True))
-@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "sarif"]), default="table")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Save JSON report to file")
 def scan_code(target: str, fmt: str, output: str | None) -> None:
     """Scan source code for OWASP Top 10 vulnerabilities."""
     result = _run_scan("code", target, code=True)
     reporter = ReportGenerator(console)
 
-    if fmt == "json" or output:
+    if fmt in {"json", "sarif"} or output:
         if output:
-            reporter.save_json(result, output)
+            output_path = Path(output)
+            if fmt == "sarif" or output_path.suffix.lower() == ".sarif":
+                output_path.write_text(reporter.to_sarif(result), encoding="utf-8")
+            else:
+                reporter.save_json(result, output_path)
             console.print(f"[green]Report saved to {output}[/green]")
         else:
-            console.print(reporter.to_json(result))
+            console.print(reporter.to_sarif(result) if fmt == "sarif" else reporter.to_json(result))
     else:
         reporter.print_full_report(result)
 
 
 @scan.command("deps")
 @click.argument("target", type=click.Path(exists=True))
-@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "sarif"]), default="table")
 @click.option("--output", "-o", type=click.Path(), default=None)
 def scan_deps(target: str, fmt: str, output: str | None) -> None:
     """Check dependencies for known CVEs."""
     result = _run_scan("dependency", target, deps=True)
     reporter = ReportGenerator(console)
 
-    if fmt == "json" or output:
+    if fmt in {"json", "sarif"} or output:
         if output:
-            reporter.save_json(result, output)
+            output_path = Path(output)
+            if fmt == "sarif" or output_path.suffix.lower() == ".sarif":
+                output_path.write_text(reporter.to_sarif(result), encoding="utf-8")
+            else:
+                reporter.save_json(result, output_path)
             console.print(f"[green]Report saved to {output}[/green]")
         else:
-            console.print(reporter.to_json(result))
+            console.print(reporter.to_sarif(result) if fmt == "sarif" else reporter.to_json(result))
     else:
         reporter.print_full_report(result)
 
 
 @scan.command("config")
 @click.argument("target", type=click.Path(exists=True))
-@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "sarif"]), default="table")
 @click.option("--output", "-o", type=click.Path(), default=None)
 def scan_config(target: str, fmt: str, output: str | None) -> None:
     """Scan configuration files for misconfigurations."""
     result = _run_scan("config", target, config=True)
     reporter = ReportGenerator(console)
 
-    if fmt == "json" or output:
+    if fmt in {"json", "sarif"} or output:
         if output:
-            reporter.save_json(result, output)
+            output_path = Path(output)
+            if fmt == "sarif" or output_path.suffix.lower() == ".sarif":
+                output_path.write_text(reporter.to_sarif(result), encoding="utf-8")
+            else:
+                reporter.save_json(result, output_path)
             console.print(f"[green]Report saved to {output}[/green]")
         else:
-            console.print(reporter.to_json(result))
+            console.print(reporter.to_sarif(result) if fmt == "sarif" else reporter.to_json(result))
     else:
         reporter.print_full_report(result)
 
 
 @scan.command("all")
 @click.argument("target", type=click.Path(exists=True))
-@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "sarif"]), default="table")
 @click.option("--output", "-o", type=click.Path(), default=None)
 def scan_all(target: str, fmt: str, output: str | None) -> None:
     """Run all scans (code + dependencies + configuration)."""
     result = _run_scan("all", target)
     reporter = ReportGenerator(console)
 
-    if fmt == "json" or output:
+    if fmt in {"json", "sarif"} or output:
         if output:
-            reporter.save_json(result, output)
+            output_path = Path(output)
+            if fmt == "sarif" or output_path.suffix.lower() == ".sarif":
+                output_path.write_text(reporter.to_sarif(result), encoding="utf-8")
+            else:
+                reporter.save_json(result, output_path)
             console.print(f"[green]Report saved to {output}[/green]")
         else:
-            console.print(reporter.to_json(result))
+            console.print(reporter.to_sarif(result) if fmt == "sarif" else reporter.to_json(result))
     else:
         reporter.print_full_report(result)
 
 
 @cli.command()
 @click.argument("target", type=click.Path(exists=True))
-@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+@click.option("--format", "fmt", type=click.Choice(["table", "json", "sarif"]), default="table")
 @click.option("--output", "-o", type=click.Path(), default=None)
 def report(target: str, fmt: str, output: str | None) -> None:
     """Generate a full vulnerability report for a target."""
@@ -165,10 +181,16 @@ def report(target: str, fmt: str, output: str | None) -> None:
     reporter = ReportGenerator(console)
 
     if output:
-        reporter.save_json(result, output)
+        output_path = Path(output)
+        if fmt == "sarif" or output_path.suffix.lower() == ".sarif":
+            output_path.write_text(reporter.to_sarif(result), encoding="utf-8")
+        else:
+            reporter.save_json(result, output_path)
         console.print(f"[green]Report saved to {output}[/green]")
     elif fmt == "json":
         console.print(reporter.to_json(result))
+    elif fmt == "sarif":
+        console.print(reporter.to_sarif(result))
     else:
         reporter.print_full_report(result)
 

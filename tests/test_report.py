@@ -7,6 +7,7 @@ from pathlib import Path
 from rich.console import Console
 
 from vulnfix.models import Fix, OWASPCategory, ScanResult, Severity, Vulnerability
+from vulnfix.models import FindingStatus, SuppressionRule
 from vulnfix.report import ReportGenerator
 
 
@@ -76,6 +77,25 @@ class TestReportGenerator:
         d = self.reporter.to_dict(result)
         assert isinstance(d, dict)
         assert d["scan_type"] == "code"
+
+    def test_to_sarif(self):
+        result = self._make_result()
+        sarif = json.loads(self.reporter.to_sarif(result))
+        assert sarif["version"] == "2.1.0"
+        assert sarif["runs"][0]["tool"]["driver"]["name"] == "vulnfix"
+        assert len(sarif["runs"][0]["results"]) == 2
+
+    def test_triage_finding(self):
+        result = self._make_result()
+        triage = self.reporter.triage_finding(
+            result,
+            "VULNFIX-0001",
+            status=FindingStatus.SUPPRESSED,
+            notes="known noisy rule",
+            suppression=SuppressionRule(file_path="/app/views.py", reason="accepted"),
+        )
+        assert triage.status == FindingStatus.SUPPRESSED
+        assert result.triage[0].suppression.reason == "accepted"
 
     def test_print_summary(self):
         result = self._make_result()
